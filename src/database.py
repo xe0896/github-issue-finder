@@ -1,5 +1,5 @@
 import psycopg2 # Execute SQL queries and enable connection
-import psycopg2.extras # Adds cursor types
+from psycopg2.extras import DictCursor # Adds cursor types
 from pgvector.psycopg2 import register_vector
 from dotenv import load_dotenv
 
@@ -23,24 +23,23 @@ class Database:
 
         data = (issue["id"], issue["number"], issue["title"], issue["body"], issue["state"],
                 labelNames, issue["created_at"], issue["closed_at"], issue["url"])
-        
 
         cursor.execute(insertIssues, data)
 
         self.conn.commit()
-        print(f"Inserted data: {data}")
         cursor.close()
 
     def getUnembedded(self) -> list[dict]:
-        cursor = self.conn.cursor()
+        cursor = self.conn.cursor(cursor_factory=DictCursor) # We want a dict
         selectUnembeddedRows = """
-        SELECT id, number, title FROM issues WHERE embedding is NULL;
+        SELECT id, number, title, body FROM issues WHERE embedding is NULL;
         """
 
         cursor.execute(selectUnembeddedRows)
 
         # Returns a list of al rows in the result set
         rows = cursor.fetchall()
+        
         cursor.close()
 
         return rows

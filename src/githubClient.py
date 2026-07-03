@@ -1,5 +1,6 @@
 import requests
 import time
+from tqdm import tqdm
 from yaspin import yaspin
 
 class GitHubClient:
@@ -50,53 +51,49 @@ class GitHubClient:
         # Grab the link header since we 
         return res.json(), res.headers.get('link')
 
-    def filterKey(self, key: str, data: list, store: list) -> list | int:
-        count = 0
-        for entry in data:
-            if key not in entry:
-                store.append(entry)
-            else:
-                count = count + 1
-
-        return store, count
-
     def fetchIssues(self, state: str = "all") -> list[dict]:
+        nonPRs = 0
+        print(f"Fetching issues at {self.BASE_URL + "/repos/" + self.repo}")
+        pbar = tqdm()
+        issues = []
+
+        def filterKey(key: str, data: list) -> None:
+            nonlocal nonPRs # Allows nonPRs to be visible in this nested function
+            for entry in data:
+                if key not in entry:
+                    issues.append(entry)
+                    nonPRs = nonPRs + 1
+                    pbar.update(nonPRs)
+
         # We wanna get the issues of the repo given until we receive an empty page
         # we must skip pull requests and ensure we request 100 pages per request
         # to satisfy GitHub and also sleep briefly between pages to not overload the server
         pagesRemaining = True
-        issues = []
         pageNumber = 1
+    
         #print(self.BASE_URL + "/repos/" + self.repo + "/issues")
-        with yaspin(text="Loading GitHub issues", color="cyan") as sp:
-            sp.write(f"> Loading page {pageNumber}.")
-            data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100})
-            
-            for entry in data:
-                if 'pull_request' not in entry:
-                    issues.append(entry)
-
-            if(link is None or ' rel="next' not in link):
-                return issues
-
-            # Splits the node into two, URl and the rel=? and strip out the <> to get the pure URL
-            url = link.split(";")[0].strip("<>")
-
-            while(pagesRemaining):
-                pageNumber = pageNumber + 1
-                sp.write(f"> Loading page {pageNumber}.")
-                data, link = self._get(path=url, params=None)
-                #print("Next: ", link.split(";")[0].strip("<>"), "Prev: ", link.split(";")[1].strip("<>"), link.split(";")[2])
-                if(link is None or ' rel="next' not in link):
-                    pagesRemaining = False
-                    issues, count = self.filterKey('pull_request', data, issues)
-                    return issues
-                
-                issues, count = self.filterKey('pull_request', data, issues)     
-
-                url = link.split(";")[0].strip("<>")
-
-            sp.ok("Finished.")
         
+        data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100})
+
+        filterKey(key='pull_request', data=data)
+
+        if(link is None or ' rel="next' not in link):
+            return issues
+
+        # Splits the node into two, URl and the rel=? and strip out the <> to get the pure URL
+        url = link.split(";")[0].strip("<>")
+
+        while(pagesRemaining):
+            pageNumber = pageNumber + 1
+            data, link = self._get(path=url, params=None)
+            #print("Next: ", link.split(";")[0].strip("<>"), "Prev: ", link.split(";")[1].strip("<>"), link.split(";")[2])
+            if(link is None or ' rel="next' not in link):
+                pagesRemaining = False
+                filterKey(key='pull_request', data=data)
+                return issues
+                
+            filterKey(key='pull_request', data=data)     
+
+            url = link.split(";")[0].strip("<>")
         
         return issues

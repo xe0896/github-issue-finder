@@ -1,5 +1,4 @@
 from sentence_transformers import SentenceTransformer
-
 class Embedder:
     # Requires a task prefix for every input, corpus documents use "search_document: "
     # search queries use "search_query: ", model is trained using these prefixes
@@ -9,7 +8,10 @@ class Embedder:
     QUERY = "search_query: "
 
     def __init__(self):
+        
+        print("Loading model...")
         self.model = SentenceTransformer(self.MODEL_NAME, trust_remote_code=True)
+        print("Model loaded")
     
     # Tells the model what we want, apply some truncuation to not give it irrelevant stuff
     def _make_document_text(self, issue: dict) -> str:

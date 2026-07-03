@@ -1,4 +1,16 @@
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE INDEX ON issues USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- Everytime an update or insertion happens the tsvector is calculated based on the title
+-- and body, we use STORED so that we store the vector rather then recompute on selection for 
+-- fast retreivals
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS search_vector tsvector
+  GENERATED ALWAYS AS (
+    to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body,''))
+  ) STORED;
+
+-- 
+CREATE INDEX IF NOT EXISTS issues_search_gin ON issues USING gin (search_vector);
 
 CREATE TABLE IF NOT EXISTS issues (
     id BIGINT PRIMARY KEY, -- GitHub's internal unique ID
