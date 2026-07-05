@@ -9,7 +9,7 @@ from pprint import pprint
 
 BATCH_SIZE = 64
 
-def main():
+def ingest() -> Database | Embedder:
     load_dotenv()
     GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
@@ -17,8 +17,10 @@ def main():
     embedder = Embedder()
     db = Database(os.getenv("DATABASE_URL"))
 
-    issues = client.fetchIssues()
+    duplicates = client.fetch_duplicate_pairs()
+    print(duplicates)
 
+    """
     print("Inserting issues in database")
     for issue in tqdm(issues):
         db.insertIssue(issue)
@@ -34,8 +36,7 @@ def main():
         for j in range(len(batch)):
             db.saveEmbedding(batch[j]["id"], embeddings[j])
 
-    db.close()
-
+    """
 
 if __name__ == "__main__":
-    main() # Importing this module would execute all the code, this adds a guard to not allow that, only direct calls
+    ingest()

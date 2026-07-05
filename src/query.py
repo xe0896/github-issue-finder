@@ -3,12 +3,18 @@ from dotenv import load_dotenv
 from database import Database
 from embedder import Embedder
 from search import SearchEngine
+from hybrid import HybridSearch
+from pprint import pprint
 
+import ingest
 
 def main():
     load_dotenv()
 
-    query = input("Enter query: ")
+    #ingest.ingest()
+
+    #query = input("Enter query: ")
+    query = "stalls"
     print(f"Query: {query}")
     if not query:
         print("Usage: python3 query.py <query>")
@@ -18,10 +24,10 @@ def main():
     embedder = Embedder()
     engine = SearchEngine(db, embedder)
 
-    results = engine.search(query,k=10)
+    hybrid = HybridSearch(db, engine)    
 
-    for r in results:
-        print(embedder.embed_query(query))
+    similar = hybrid.search(query, k=10)
+    pprint(similar)
 
     db.close()
 

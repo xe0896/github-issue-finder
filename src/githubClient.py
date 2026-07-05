@@ -2,6 +2,7 @@ import requests
 import time
 from tqdm import tqdm
 from yaspin import yaspin
+from pprint import pprint
 
 class GitHubClient:
     BASE_URL = "https://api.github.com"
@@ -97,3 +98,73 @@ class GitHubClient:
             url = link.split(";")[0].strip("<>")
         
         return issues
+
+    def fetch_duplicate_pairs(self, state: str = "all") -> list[tuple[int, int]]:
+        duplicates = []
+        def filterDuplicate(keys: tuple, data: list) -> None:
+            # Given a keys tuple which is just the filter, find the duplications its canonical issue number
+            for entry in data:
+                # ID of the current issue
+                id = entry['number']
+                reason = entry['state_reason']
+                if keys[0] not in entry and reason == keys[1]:
+                    # This query is a GraphQL query, this aint a RESTFUL one because it doesn't expose this information
+                    # there, the idea is that the query() is like a function that is passing the parameters to
+                    # repository and issue, where the repository is indexed via the owner and repo and the issue
+                    # is indexed by its ID, we can then get the duplicateOf field which exposes the canonical issue number
+                    query = """
+                    query($owner: String!, $repo: String!, $number: Int!) {
+                        repository(owner: $owner, name: $repo) {
+                            issue(number: $number) {
+                                duplicateOf {
+                                    number
+                                }
+                            }
+                        }
+                    }
+                    """
+
+                    # microsoft/vscode -> microsoft, vscode
+                    index = self.repo.split("/")
+                    print(index[0], index[1])
+
+                    variables = {"owner": index[0], "repo": index[1], "number": id}
+
+                    res = requests.post(
+                        "https://api.github.com/graphql",
+                        headers={"Authorization": f"Bearer {self.token}"},
+                        json={"query": query, "variables": variables},
+                        timeout=10,
+                    )
+                    canonical = res.json()["data"]["repository"]["issue"]["duplicateOf"]["number"]
+                    duplicates.append((id, canonical))
+                    #print(res["data"]["repository"]["issue"].json())
+                
+
+        pagesRemaining = True
+        pageNumber = 1
+        
+        data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params= {"state": state, "per_page": 100}) 
+
+        filterDuplicate(keys=('pull_request', 'duplicate'), data=data)
+
+        if link is None or ' rel=next' not in link:
+            pass
+
+        url = link.split(";")[0].strip("<>")
+        
+        while(pagesRemaining):
+            pageNumber = pageNumber + 1
+            data, link = self._get(path=url, params=None)
+
+            if(link is None or ' rel="next' not in link):
+                pagesRemaining = False
+                filterDuplicate(keys=('pull_request', 'duplicate'), data=data)
+            
+                return duplicates
+
+            filterDuplicate(keys=('pull_request', 'duplicate'), data=data)     
+
+            url = link.split(";")[0].strip("<>")
+
+        pass
