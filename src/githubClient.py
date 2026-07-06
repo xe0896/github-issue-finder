@@ -99,8 +99,9 @@ class GitHubClient:
         
         return issues
 
-    def fetch_duplicate_pairs(self, state: str = "all") -> list[tuple[int, int]]:
+    def fetch_duplicate_pairs(self, state: str = "all") -> list[int] | list[int]:
         duplicates = []
+        canonicals = []
         def filterDuplicate(keys: tuple, data: list) -> None:
             # Given a keys tuple which is just the filter, find the duplications its canonical issue number
             for entry in data:
@@ -126,7 +127,6 @@ class GitHubClient:
 
                     # microsoft/vscode -> microsoft, vscode
                     index = self.repo.split("/")
-                    print(index[0], index[1])
 
                     variables = {"owner": index[0], "repo": index[1], "number": id}
 
@@ -136,8 +136,9 @@ class GitHubClient:
                         json={"query": query, "variables": variables},
                         timeout=10,
                     )
-                    canonical = res.json()["data"]["repository"]["issue"]["duplicateOf"]["number"]
-                    duplicates.append((id, canonical))
+                    canonicalID = res.json()["data"]["repository"]["issue"]["duplicateOf"]["number"]
+                    duplicates.append(id)
+                    canonicals.append(canonicalID)
                     #print(res["data"]["repository"]["issue"].json())
                 
 
@@ -161,7 +162,7 @@ class GitHubClient:
                 pagesRemaining = False
                 filterDuplicate(keys=('pull_request', 'duplicate'), data=data)
             
-                return duplicates
+                return duplicates, canonicals
 
             filterDuplicate(keys=('pull_request', 'duplicate'), data=data)     
 

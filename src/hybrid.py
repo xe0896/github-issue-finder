@@ -20,7 +20,7 @@ class HybridSearch:
         for i in range(len(dense)):
             number = dense[i]["number"]
             scores[number] = scores.get(number, 0) + 1/(self.RRF_K + i + 1)
-        
+
         # first k, v is making the dict; second one is unpacking the tuple
         #topK = {k: v for k, v in sorted(scores.items(), key=lambda item: item[1])}
         # Sorts the given dictionary based on score into a list, the top one would make it back to a dict
@@ -29,9 +29,9 @@ class HybridSearch:
         topK = sorted(scores.items(), key=lambda item: item[1],reverse=True)
         return topK[0:10]
     
-    def search(self, query: str, k: int = 10) -> list[dict]:
-        dense = self.engine.search(query, k)
-        sparse = self.database.keyword_search(query, k)
+    def search(self, query: str, k: int = 10, exclude: int = None) -> list[dict]:
+        dense = self.engine.search(query, k, exclude)
+        sparse = self.database.keyword_search(query, k, exclude)
 
         return self.rrf(dense, sparse, k)
 

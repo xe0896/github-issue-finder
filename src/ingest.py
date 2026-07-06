@@ -4,8 +4,18 @@ from githubClient import GitHubClient as GitHubClient
 from embedder import Embedder as Embedder
 from database import Database as Database
 from search import SearchEngine as SearchEngine
+
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1] / "eval"))
+
+import runEval
+
 from tqdm import tqdm
 from pprint import pprint
+from hybrid import HybridSearch
+from search import SearchEngine
 
 BATCH_SIZE = 64
 
@@ -16,9 +26,8 @@ def ingest() -> Database | Embedder:
     client = GitHubClient(token=GITHUB_TOKEN,repo="usestrix/strix")
     embedder = Embedder()
     db = Database(os.getenv("DATABASE_URL"))
-
-    duplicates = client.fetch_duplicate_pairs()
-    print(duplicates)
+    engine = SearchEngine(db, embedder)
+    hybridSearch = HybridSearch(db, engine)
 
     """
     print("Inserting issues in database")
@@ -37,6 +46,10 @@ def ingest() -> Database | Embedder:
             db.saveEmbedding(batch[j]["id"], embeddings[j])
 
     """
+
+    duplicates, canonicals = client.fetch_duplicate_pairs()
+    MRR = runEval.evaluate(duplicates, canonicals, db, hybridSearch, embedder)
+    print("MRR:", MRR)
 
 if __name__ == "__main__":
     ingest()

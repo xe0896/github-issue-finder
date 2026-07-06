@@ -6,6 +6,6 @@ class SearchEngine:
         self.db = db
         self.embedder = embedder
 
-    def search(self, query: str, k: int = 10) -> list[dict]:
+    def search(self, query: str, k: int = 10, exclude: int = None) -> list[dict]:
         embedding = self.embedder.embed_query(query)
-        return self.db.search(embedding, k)
+        return self.db.search(embedding, k, exclude)
