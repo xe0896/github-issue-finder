@@ -98,6 +98,26 @@ class GitHubClient:
             url = link.split(";")[0].strip("<>")
         
         return issues
+    
+    def graphQL_fetch(self, variables: dict, query: str, retries: int = 30) -> dict:
+        try:
+            res = requests.post(
+                "https://api.github.com/graphql",
+                headers={"Authorization": f"Bearer {self.token}"},
+                json={"query": query, "variables": variables},
+                timeout=10,
+            )
+        except requests.exceptions.ConnectionError as e:
+            if retries > 0:
+                time.sleep(4)
+                print(f"Retrying, attempts left: {retries - 1}")
+                return self.graphQL_fetch(variables, query, retries - 1)
+            else:
+                print("All attempts exhausted")
+                print("A request error occurred", e)
+            return {}
+            
+        return res.json()
 
     def fetch_duplicate_pairs(self, state: str = "all") -> list[int] | list[int]:
         duplicates = []
@@ -109,6 +129,10 @@ class GitHubClient:
                 id = entry['number']
                 reason = entry['state_reason']
                 if keys[0] not in entry and reason == keys[1]:
+                    index = self.repo.split("/")
+                     # microsoft/vscode -> microsoft, vscode
+                    variables = {"owner": index[0], "repo": index[1], "number": id}
+
                     # This query is a GraphQL query, this aint a RESTFUL one because it doesn't expose this information
                     # there, the idea is that the query() is like a function that is passing the parameters to
                     # repository and issue, where the repository is indexed via the owner and repo and the issue
@@ -125,21 +149,9 @@ class GitHubClient:
                     }
                     """
 
-                    # microsoft/vscode -> microsoft, vscode
-                    index = self.repo.split("/")
-
-                    variables = {"owner": index[0], "repo": index[1], "number": id}
-
-                    res = requests.post(
-                        "https://api.github.com/graphql",
-                        headers={"Authorization": f"Bearer {self.token}"},
-                        json={"query": query, "variables": variables},
-                        timeout=10,
-                    )
-                    canonicalID = res.json()["data"]["repository"]["issue"]["duplicateOf"]["number"]
+                    canonicalID = self.graphQL_fetch(variables, query)["data"]["repository"]["issue"]["duplicateOf"]["number"]
                     duplicates.append(id)
                     canonicals.append(canonicalID)
-                    #print(res["data"]["repository"]["issue"].json())
                 
 
         pagesRemaining = True

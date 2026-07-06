@@ -60,9 +60,10 @@ class Database:
 
         getQuery = """
         SELECT number, body, title FROM issues WHERE number = ANY(%s)
+        ORDER BY array_position(%s, number)
         """
 
-        data = (id,) # psycopg wants a tuple so trailing , makes it
+        data = (id, id) # psycopg wants a tuple so trailing , makes it
 
         cursor.execute(getQuery, data)
         rows = cursor.fetchall()
@@ -92,7 +93,7 @@ class Database:
         ORDER BY embedding <=> %s::vector
         LIMIT %s
         """
-
+        
         cursor.execute(cosineNeighbourQuery, data)
         
         rows = cursor.fetchall()
@@ -130,6 +131,8 @@ class Database:
         ORDER BY score DESC
         LIMIT %s
         """
+
+        print(keywordSearchQuery)
 
         cursor.execute(keywordSearchQuery, data)
         rows = cursor.fetchall()
