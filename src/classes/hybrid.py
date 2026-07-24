@@ -1,5 +1,5 @@
-from database import Database
-from search import SearchEngine
+from classes.database import Database
+from classes.search import SearchEngine
 from pprint import pprint
 
 class HybridSearch:

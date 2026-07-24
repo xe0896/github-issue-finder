@@ -1,8 +1,8 @@
 import os
 
-from database import Database
-from hybrid import HybridSearch
-from embedder import Embedder
+from classes.database import Database
+from classes.hybrid import HybridSearch
+from classes.embedder import Embedder
 
 from pprint import pprint
 

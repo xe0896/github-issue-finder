@@ -1,4 +1,6 @@
 from sentence_transformers import SentenceTransformer
+from dotenv import load_dotenv
+
 class Embedder:
     # Requires a task prefix for every input, corpus documents use "search_document: "
     # search queries use "search_query: ", model is trained using these prefixes
@@ -7,8 +9,7 @@ class Embedder:
     DOCUMENT = "search_document: "
     QUERY = "search_query: "
 
-    def __init__(self):
-        
+    def __init__(self):      
         print("Loading model...")
         self.model = SentenceTransformer(self.MODEL_NAME, trust_remote_code=True)
         print("Model loaded")

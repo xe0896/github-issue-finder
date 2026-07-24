@@ -4,7 +4,9 @@ from tqdm import tqdm
 from yaspin import yaspin
 from pprint import pprint
 
+
 class GitHubClient:
+    # BASE_URL of API requests
     BASE_URL = "https://api.github.com"
 
     # The token belongs to the user to prove that the user is an authenticated GitHub user
@@ -13,9 +15,9 @@ class GitHubClient:
 
     # https://github.com/curl/curl would be a full repo, the repo provided
     # below would be in the form curl/curl
-    def __init__(self, token: str, repo: str):
-        self.token = token
-        self.repo = repo
+    def __init__(self, token: str, repo: str, name: str):
+        self.token = token # GitHub token
+        self.repo = name + "/" + repo
         # https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10
         # "vnd.github+json" instead of plain "json" since we want GitHub's version of
         # the JSON we want returned since it may miss some useful fields
@@ -33,13 +35,21 @@ class GitHubClient:
 
             # https://api.github.com/repos/curl/curl/issues?page=10&per_page=100&state=all
             # Above has some params such as page=10, per_page and state=all to get open and closed issues
-            res = requests.get(path, headers=self.header, params=params, timeout=20)
+            # We have to use aiohttp since requests is blocking, meaning it cannot be done in parallel
+
+            # Raises RequestException
+            res = requests.get(url=path, params=params);
+
+            # Raises HTTP error
             res.raise_for_status()
+            data = res.json()
+            link = res.headers.get("link")
+            return data, link
    
-        except requests.exceptions.HTTPError as e:
+        except requests.HTTPError as e:
             print("HTTP error occurred", e)
-            return []
-        except requests.exceptions.RequestException as e:
+            return [], None
+        except requests.RequestException as e:
             if(retries > 0):
                 time.sleep(4)
                 print(f"Retrying, attempts left: {retries - 1}")
@@ -47,16 +57,15 @@ class GitHubClient:
             else:
                 print("All attempts exhausted")
                 print("A request error occurred", e)
-            return []
+            return [], None
 
-        # Grab the link header since we 
-        return res.json(), res.headers.get('link')
-
+    # All because we want to include even resolved issues
     def fetchIssues(self, state: str = "all") -> list[dict]:
         nonPRs = 0
-        print(f"Fetching issues at {self.BASE_URL + "/repos/" + self.repo}")
         pbar = tqdm()
         issues = []
+
+        print(f"Fetching issues at {self.BASE_URL + "/repos/" + self.repo}")
 
         def filterKey(key: str, data: list) -> None:
             nonlocal nonPRs # Allows nonPRs to be visible in this nested function
@@ -65,7 +74,7 @@ class GitHubClient:
                     issues.append(entry)
                     nonPRs = nonPRs + 1
                     pbar.update(nonPRs)
-
+                        
         # We wanna get the issues of the repo given until we receive an empty page
         # we must skip pull requests and ensure we request 100 pages per request
         # to satisfy GitHub and also sleep briefly between pages to not overload the server
@@ -99,7 +108,7 @@ class GitHubClient:
         
         return issues
     
-    def graphQL_fetch(self, variables: dict, query: str, retries: int = 30) -> dict:
+    def _graphQL_fetch(self, variables: dict, query: str, retries: int = 30) -> dict:
         try:
             res = requests.post(
                 "https://api.github.com/graphql",
@@ -149,10 +158,9 @@ class GitHubClient:
                     }
                     """
 
-                    canonicalID = self.graphQL_fetch(variables, query)["data"]["repository"]["issue"]["duplicateOf"]["number"]
+                    canonicalID = self._graphQL_fetch(variables, query)["data"]["repository"]["issue"]["duplicateOf"]["number"]
                     duplicates.append(id)
                     canonicals.append(canonicalID)
-                
 
         pagesRemaining = True
         pageNumber = 1
@@ -180,4 +188,22 @@ class GitHubClient:
 
             url = link.split(";")[0].strip("<>")
 
+    """
+    def get_issue_templates(self):
+        url = self.BASE_URL + "/repos/" + self.repo + "/contents/" + ".github/ISSUE_TEMPLATE/"
+        print(url)
         pass
+
+    # https://api.github.com/repos/OWNER/REPO/contents/PATH
+    def get_file(self, path: str):
+        url = self.BASE_URL + "/repos/" + self.repo + "/contents/" + path
+        data, link = self._get(path=url, params=None)
+
+        return data
+
+    def TEMP_get_issue_content(self, path: str):
+        url = self.BASE_URL + "/repos/" + self.repo + "/issues/" + path
+        data, link = self._get(path=url, params=None)
+
+        return data
+    """

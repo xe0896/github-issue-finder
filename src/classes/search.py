@@ -1,5 +1,5 @@
-from database import Database
-from embedder import Embedder
+from classes.database import Database
+from classes.embedder import Embedder
 
 class SearchEngine:
     def __init__(self, db: Database, embedder: Embedder):

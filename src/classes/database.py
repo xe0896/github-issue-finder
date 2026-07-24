@@ -58,6 +58,8 @@ class Database:
     def get_query(self, id: list[int]) -> list[dict]:
         cursor = self.conn.cursor(cursor_factory=DictCursor)
 
+        # The array given may return out of order w.r.t to the array provided order, so we use
+        # array_position to make it so that it is in order
         getQuery = """
         SELECT number, body, title FROM issues WHERE number = ANY(%s)
         ORDER BY array_position(%s, number)

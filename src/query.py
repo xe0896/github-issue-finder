@@ -1,9 +1,9 @@
 import os
 from dotenv import load_dotenv
-from database import Database
-from embedder import Embedder
-from search import SearchEngine
-from hybrid import HybridSearch
+from classes.database import Database
+from classes.embedder import Embedder
+from classes.search import SearchEngine
+from classes.hybrid import HybridSearch
 from pprint import pprint
 
 import ingest
@@ -11,9 +11,6 @@ import ingest
 def main():
     load_dotenv()
 
-    #ingest.ingest()
-
-    #query = input("Enter query: ")
     query = "stalls"
     print(f"Query: {query}")
     if not query:

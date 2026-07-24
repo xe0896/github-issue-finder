@@ -1,40 +1,28 @@
-import os
-from dotenv import load_dotenv
-from githubClient import GitHubClient as GitHubClient
-from embedder import Embedder as Embedder
-from database import Database as Database
-from search import SearchEngine as SearchEngine
-
 import sys
+import base64
+
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1] / "eval"))
-
+sys.path.append(str(Path(__file__).resolve().parents[1] / "eval")) # Allows us to use eval folder
 import runEval
 
 from tqdm import tqdm
+from setup import setup
 from pprint import pprint
-from hybrid import HybridSearch
-from search import SearchEngine
 
 BATCH_SIZE = 64
 
-def ingest() -> Database | Embedder:
-    load_dotenv()
-    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+def ingest(): 
 
-    client = GitHubClient(token=GITHUB_TOKEN,repo="usestrix/strix")
-    embedder = Embedder()
-    db = Database(os.getenv("DATABASE_URL"))
-    engine = SearchEngine(db, embedder)
-    hybridSearch = HybridSearch(db, engine)
+    database, embedder, client, hybrid = setup("strix", "usestrix")
 
-    """
+    issues = client.fetchIssues()
+
     print("Inserting issues in database")
     for issue in tqdm(issues):
-        db.insertIssue(issue)
+        database.insertIssue(issue)
 
-    unembeddedIssues = db.getUnembedded()
+    unembeddedIssues = database.getUnembedded()
     
     # For all the issues that do not have an embedding, we grab BATCH_SIZE amount of issues and 
     # calculate the embeddings for each issue and save each of them back into the database, we do this
@@ -43,13 +31,20 @@ def ingest() -> Database | Embedder:
         batch = unembeddedIssues[i: i + BATCH_SIZE]
         embeddings = embedder.embed_documents(batch)
         for j in range(len(batch)):
-            db.saveEmbedding(batch[j]["id"], embeddings[j])
+            database.saveEmbedding(batch[j]["id"], embeddings[j])
 
-    """
+    """ Evaluation:
+    content = client.get_file(".github/ISSUE_TEMPLATE/feature_request.md")
+    feature_request = base64.standard_b64decode(content["content"]).decode("utf-8")
+
+    issue = client.TEMP_get_issue_content("206")
+    issue_body = issue["body"]
+    
 
     duplicates, canonicals = client.fetch_duplicate_pairs()
-    MRR = runEval.evaluate(duplicates, canonicals, db, hybridSearch, embedder)
+    MRR = runEval.evaluate(duplicates, canonicals, database, hybrid, embedder)
     print("MRR:", MRR)
+    """
 
 if __name__ == "__main__":
     ingest()
