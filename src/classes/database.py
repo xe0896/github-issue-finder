@@ -29,6 +29,20 @@ class Database:
         self.conn.commit()
         cursor.close()
 
+    def getIssue(self, issue_num: int) -> dict:
+        cursor = self.conn.cursor(cursor_factory=DictCursor)
+        getIssue = """
+        SELECT * FROM issues WHERE number = %s
+        """
+
+        data = (issue_num, )
+        cursor.execute(getIssue, data)
+
+        rows = cursor.fetchone()
+        cursor.close()
+
+        return rows
+
     def getUnembedded(self) -> list[dict]:
         cursor = self.conn.cursor(cursor_factory=DictCursor) # We want a dict
         selectUnembeddedRows = """
