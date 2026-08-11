@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS issues (
     body TEXT, -- full description written by the author
     state TEXT NOT NULL, -- 'open' or 'closed'
     labels TEXT[], -- array of label names e.g. ['bug', 'help wanted']
+    comments TEXT[],
     created_at TIMESTAMPTZ, -- when the issue was opened
     closed_at TIMESTAMPTZ, -- when it was closed, NULL if still open
     url TEXT, -- link to the issue on GitHub

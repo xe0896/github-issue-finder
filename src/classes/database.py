@@ -13,16 +13,20 @@ class Database:
     def insertIssue(self, issue: dict) -> None:
         cursor = self.conn.cursor()
         insertIssues = """
-        INSERT INTO issues (id, number, title, body, state, labels, created_at, closed_at, url, embedding)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NULL);
+        INSERT INTO issues (id, number, title, body, state, labels, created_at, closed_at, url, comments, embedding)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL);
         """
         labelNames = []
         for label in issue.get("labels", []):
             # label is a list of dictionaries, so index to get one dictionary and get the name for it
             labelNames.append(label["name"]) # We just care about the label name
 
+        commentz = []
+        for comment in issue.get("comments", []):
+            commentz.append(comment)
+
         data = (issue["id"], issue["number"], issue["title"], issue["body"], issue["state"],
-                labelNames, issue["created_at"], issue["closed_at"], issue["url"])
+                labelNames, issue["created_at"], issue["closed_at"], issue["url"], commentz)
 
         cursor.execute(insertIssues, data)
 

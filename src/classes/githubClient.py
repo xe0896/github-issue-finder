@@ -24,7 +24,7 @@ class GitHubClient:
         self.header = {
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}"
-        }
+        } 
 
     def _get(self, path: str, params: dict = None, retries = 30) -> list | dict: # Endpoints may return list or dict
         # Given a path (any endpoint), request some data about it while defining params that would
@@ -38,7 +38,7 @@ class GitHubClient:
             # We have to use aiohttp since requests is blocking, meaning it cannot be done in parallel
 
             # Raises RequestException
-            res = requests.get(url=path, params=params);
+            res = requests.get(url=path, params=params, headers=self.header);
 
             # Raises HTTP error
             res.raise_for_status()
@@ -71,6 +71,14 @@ class GitHubClient:
             nonlocal nonPRs # Allows nonPRs to be visible in this nested function
             for entry in data:
                 if key not in entry:
+                    comments = []
+                    if(entry["comments"] > 0):
+                        data, _ = self._get(entry["comments_url"])
+                        for x in data:
+                            comments.append(x["body"])
+
+                    entry["comments"] = comments                    
+                    pprint(entry)
                     issues.append(entry)
                     nonPRs = nonPRs + 1
                     pbar.update(nonPRs)
@@ -188,19 +196,17 @@ class GitHubClient:
 
             url = link.split(";")[0].strip("<>")
 
+    # https://api.github.com/repos/OWNER/REPO/contents/PATH
+    def get_file(self, path: str):
+        url = self.BASE_URL + "/repos/" + self.repo + "/contents/" + path
+        data, link = self._get(path=url, params=None)
+        return data
+
     """
     def get_issue_templates(self):
         url = self.BASE_URL + "/repos/" + self.repo + "/contents/" + ".github/ISSUE_TEMPLATE/"
         print(url)
         pass
-
-    # https://api.github.com/repos/OWNER/REPO/contents/PATH
-    def get_file(self, path: str):
-        url = self.BASE_URL + "/repos/" + self.repo + "/contents/" + path
-        data, link = self._get(path=url, params=None)
-
-        return data
-
     def TEMP_get_issue_content(self, path: str):
         url = self.BASE_URL + "/repos/" + self.repo + "/issues/" + path
         data, link = self._get(path=url, params=None)

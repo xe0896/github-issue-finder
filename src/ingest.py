@@ -26,14 +26,16 @@ BATCH_SIZE = 64
 
 def ingest(): 
     load_dotenv()
-
     #database, embedder, client, hybrid = setup("strix", "usestrix")
 
     database = Database(os.getenv("DATABASE_URL"))
     client = GitHubClient(os.getenv("GITHUB_TOKEN"), "strix", "usestrix")
 
-    # issues = client.fetchIssues()
+    issues = client.fetchIssues()
 
+    insertion(issues, database)
+
+    """
     content = client.get_file(".github/ISSUE_TEMPLATE")
     urls = []
 
@@ -45,9 +47,14 @@ def ingest():
 
     for x in res:
         print(base64.standard_b64decode(x["content"]).decode("utf-8"))
+        print("***********")
+
+    
 
     storedBody = database.getIssue(206)["body"][0]
-    pprint(storedBody)
+    #pprint(storedBody)
+    """
+    
 
     # feature_request = base64.standard_b64decode(content["content"]).decode("utf-8")
 
