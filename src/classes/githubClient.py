@@ -1,8 +1,10 @@
 import requests
 import time
-from tqdm import tqdm
-from yaspin import yaspin
 from pprint import pprint
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
+console = Console()
 
 
 class GitHubClient:
@@ -47,25 +49,33 @@ class GitHubClient:
             return data, link
    
         except requests.HTTPError as e:
-            print("HTTP error occurred", e)
+            console.print(f"[red]✗ HTTP error occurred:[/] {e}")
             return [], None
         except requests.RequestException as e:
             if(retries > 0):
                 time.sleep(4)
-                print(f"Retrying, attempts left: {retries - 1}")
+                console.print(f"[yellow]↻ Retrying, attempts left: {retries - 1}[/]")
                 return self._get(path, params, retries - 1)
             else:
-                print("All attempts exhausted")
-                print("A request error occurred", e)
+                console.print("[red]✗ All attempts exhausted[/]")
+                console.print(f"[red]A request error occurred:[/] {e}")
             return [], None
 
     # All because we want to include even resolved issues
     def fetchIssues(self, state: str = "all") -> list[dict]:
         nonPRs = 0
-        pbar = tqdm()
         issues = []
 
-        print(f"Fetching issues at {self.BASE_URL + "/repos/" + self.repo}")
+        console.print(f"[dim]Fetching issues from[/] [cyan]{self.repo}[/]")
+
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[green]Fetched [bold]{task.completed}[/] issues[/] [dim](page {task.fields[page]})[/]"),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        )
+        task = progress.add_task("fetch", total=None, page=1)
 
         def filterKey(key: str, data: list) -> None:
             nonlocal nonPRs # Allows nonPRs to be visible in this nested function
@@ -77,43 +87,40 @@ class GitHubClient:
                         for x in data:
                             comments.append(x["body"])
 
-                    entry["comments"] = comments                    
-                    pprint(entry)
+                    entry["comments"] = comments
                     issues.append(entry)
                     nonPRs = nonPRs + 1
-                    pbar.update(nonPRs)
-                        
+                    progress.update(task, completed=nonPRs)
+
         # We wanna get the issues of the repo given until we receive an empty page
         # we must skip pull requests and ensure we request 100 pages per request
         # to satisfy GitHub and also sleep briefly between pages to not overload the server
         pagesRemaining = True
         pageNumber = 1
-    
-        #print(self.BASE_URL + "/repos/" + self.repo + "/issues")
-        
-        data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100})
 
-        filterKey(key='pull_request', data=data)
+        with progress:
+            data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100})
 
-        if(link is None or ' rel="next' not in link):
-            return issues
+            filterKey(key='pull_request', data=data)
 
-        # Splits the node into two, URl and the rel=? and strip out the <> to get the pure URL
-        url = link.split(";")[0].strip("<>")
+            # Splits the node into two, URl and the rel=? and strip out the <> to get the pure URL
+            url = link.split(";")[0].strip("<>") if link else None
+            pagesRemaining = url is not None and ' rel="next' in (link or "")
 
-        while(pagesRemaining):
-            pageNumber = pageNumber + 1
-            data, link = self._get(path=url, params=None)
-            #print("Next: ", link.split(";")[0].strip("<>"), "Prev: ", link.split(";")[1].strip("<>"), link.split(";")[2])
-            if(link is None or ' rel="next' not in link):
-                pagesRemaining = False
+            while(pagesRemaining):
+                pageNumber = pageNumber + 1
+                progress.update(task, page=pageNumber)
+                data, link = self._get(path=url, params=None)
+                if(link is None or ' rel="next' not in link):
+                    pagesRemaining = False
+                    filterKey(key='pull_request', data=data)
+                    break
+
                 filterKey(key='pull_request', data=data)
-                return issues
-                
-            filterKey(key='pull_request', data=data)     
 
-            url = link.split(";")[0].strip("<>")
-        
+                url = link.split(";")[0].strip("<>")
+
+        console.print(f"[green]✓[/] Fetched [bold]{len(issues)}[/] issues")
         return issues
     
     def _graphQL_fetch(self, variables: dict, query: str, retries: int = 30) -> dict:

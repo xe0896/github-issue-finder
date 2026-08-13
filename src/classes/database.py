@@ -14,7 +14,8 @@ class Database:
         cursor = self.conn.cursor()
         insertIssues = """
         INSERT INTO issues (id, number, title, body, state, labels, created_at, closed_at, url, comments, embedding)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL);
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
+        ON CONFLICT (id) DO NOTHING;
         """
         labelNames = []
         for label in issue.get("labels", []):
@@ -151,8 +152,6 @@ class Database:
         ORDER BY score DESC
         LIMIT %s
         """
-
-        print(keywordSearchQuery)
 
         cursor.execute(keywordSearchQuery, data)
         rows = cursor.fetchall()

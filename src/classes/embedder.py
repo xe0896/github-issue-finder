@@ -1,5 +1,14 @@
+import io
+import warnings
+import contextlib
+
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+from transformers import logging as hf_logging
+
+# Keep model loading quiet so it doesn't clutter the rich UI.
+hf_logging.set_verbosity_error()
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
 
 class Embedder:
     # Requires a task prefix for every input, corpus documents use "search_document: "
@@ -9,20 +18,22 @@ class Embedder:
     DOCUMENT = "search_document: "
     QUERY = "search_query: "
 
-    def __init__(self):      
-        print("Loading model...")
-        self.model = SentenceTransformer(self.MODEL_NAME, trust_remote_code=True)
-        print("Model loaded")
+    def __init__(self):
+        # The remote model code prints load chatter to stdout; swallow it so it
+        # doesn't clutter the rich UI.
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.model = SentenceTransformer(self.MODEL_NAME, trust_remote_code=True)
     
     # Tells the model what we want, apply some truncuation to not give it irrelevant stuff, the embedder
     # needs that self.DOCUMENT, the DB body field wont store the self.DOCUMENT
     def _make_document_text(self, issue: dict, strip: bool = False) -> str:
+        comments = issue["comments"] or ""
         body = issue["body"] or ""
         
         if strip:
             body = self.strip_templates(body)
         
-        return self.DOCUMENT + issue["title"] + " " + body[:512]
+        return self.DOCUMENT + issue["title"] + " " + body[:512] + comments[0][:128] + comments[1][:128]
 
     # Given a list of issues, returns vector embeddings for each one, uses _make_document_text
     # to apply preprocessing before giving it to the model
