@@ -1,14 +1,42 @@
+from datetime import datetime, timezone
+
 import psycopg2 # Execute SQL queries and enable connection
 from psycopg2.extras import DictCursor # Adds cursor types
 from pgvector.psycopg2 import register_vector
 from dotenv import load_dotenv
-
+from rich.console import Console
+from rich.panel import Panel
+import sys
 class Database:
-    def __init__(self, url: str):
+    def __init__(self, url: str, console : Console):
         # Connection accepts host, dbname, user and password but it can also except a connection string
-        self.conn =  psycopg2.connect(url)
+        self.conn = None
+        self.console = console
+        try:
+            self.conn =  psycopg2.connect(url)
+        except psycopg2.OperationalError:
+            console.print(
+                Panel.fit(
+                    f"[bold red]Docker database is not running.",
+                    border_style="red",
+                )
+            )
+            sys.exit(0) # Failure
+
         # Allows psycopg2 to handle the vector embedding type
         register_vector(self.conn)
+
+    def getLastFetched(self, id: int):
+        cursor = self.conn.cursor()
+
+        lastFetched = """
+        SELECT lastFetched FROM repos WHERE id = %s
+        """
+
+        cursor.execute(lastFetched, (id, ))
+
+        rows = cursor.fetchone()
+
 
     def insertIssue(self, issue: dict) -> None:
         cursor = self.conn.cursor()
@@ -17,19 +45,36 @@ class Database:
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
         ON CONFLICT (id) DO NOTHING;
         """
+
+        existenceCheck = """
+        SELECT COUNT(*) FROM issues WHERE id = %s
+        """
+
         labelNames = []
         for label in issue.get("labels", []):
             # label is a list of dictionaries, so index to get one dictionary and get the name for it
             labelNames.append(label["name"]) # We just care about the label name
 
-        commentz = []
+        comments = []
         for comment in issue.get("comments", []):
-            commentz.append(comment)
+            comments.append(comment)
 
-        data = (issue["id"], issue["number"], issue["title"], issue["body"], issue["state"],
-                labelNames, issue["created_at"], issue["closed_at"], issue["url"], commentz)
-
-        cursor.execute(insertIssues, data)
+        cursor.execute(existenceCheck, (issue["id"], ))
+        
+        rows = cursor.fetchone()
+        
+        if(rows[0] > 0):
+            updateIssue = """
+            UPDATE issues
+            SET body = %s, state = %s, comments = %s
+            WHERE id = %s
+            """
+            cursor.execute(updateIssue, (issue["body"], issue["state"], comments, issue["id"]))
+        else:
+            data = (issue["id"], issue["number"], issue["title"], issue["body"], issue["state"],
+                            labelNames, issue["created_at"], issue["closed_at"], issue["url"], comments)
+            
+            cursor.execute(insertIssues, data)
 
         self.conn.commit()
         cursor.close()
@@ -91,6 +136,49 @@ class Database:
         cursor.close()
 
         return rows
+
+    def incomingRepo(self, id : int, repo : str, owner : str) -> datetime:
+        cursor = self.conn.cursor(cursor_factory=DictCursor)
+
+        existenceCheck = """
+        SELECT lastFetched FROM repos WHERE id = %s
+        """
+
+        dt = datetime.now(timezone.utc)
+        cursor.execute(existenceCheck, (id, ))
+
+        rows = cursor.fetchone()
+        if(rows == None):
+            # Does not exist yet
+            newRepo = """
+            INSERT INTO repos (id, lastFetched)
+            VALUES (%s, %s)
+            ON CONFLICT (id) DO NOTHING;
+            """
+
+            data = (id, dt)
+
+            cursor.execute(newRepo, data)
+        else:
+            # Does exist
+            updateLastFetched = """
+            UPDATE repos
+            SET lastFetched = %s
+            WHERE id = %s
+            """
+
+            data = (dt, id)
+
+            cursor.execute(updateLastFetched, data)
+
+        self.conn.commit()
+        cursor.close()
+
+        if(dt is None):
+            return None
+        else:
+            return dt
+
 
     def search(self, query_embedding: list[float], k: int = 10, exclude: int = None) -> list[dict]:
         cursor = self.conn.cursor(cursor_factory=DictCursor)

@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS issues (
     embedding vector(768) -- 768-dim meaning vector, filled in by the embedder
 );
 
+CREATE TABLE IF NOT EXISTS repos (
+    id BIGINT PRIMARY KEY,
+    lastFetched TIMESTAMPTZ
+);
+
 CREATE INDEX IF NOT EXISTS issue_embedding ON issues USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 
 -- Everytime an update or insertion happens the tsvector is calculated based on the title

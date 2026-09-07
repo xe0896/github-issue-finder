@@ -47,7 +47,7 @@ def ingest(
     """Fetch issues from a GitHub repo and store them in the database."""
     console.print(
         Panel.fit(
-            f"[bold cyan]GitHub Issue Ingest[/]\n[dim]{owner}/{repo}[/]",
+            f"[bold cyan]GitHub Issue Finder[/]\n[dim]{owner}/{repo}[/]",
             border_style="cyan",
         )
     )
@@ -55,11 +55,14 @@ def ingest(
     load_dotenv()
 
     with console.status("[bold green]Connecting to database & GitHub…", spinner="dots"):
-        database = Database(os.getenv("DATABASE_URL"))
-        client = GitHubClient(os.getenv("GITHUB_TOKEN"), repo, owner)
+        database, embedder, client, hybrid = setup(repo, owner, console)
     console.print("[green]✓[/] Connected to database & GitHub")
 
-    issues = client.fetchIssues()
+    id = client.getRepoId(repo, owner)
+    print(id)
+    timestamp = database.incomingRepo(id, repo, owner)
+    
+    issues = client.fetchIssues(id=id, timestamp=timestamp)
 
     inserted = insertion(issues, database)
 
@@ -84,12 +87,9 @@ def ingest(
         print(base64.standard_b64decode(x["content"]).decode("utf-8"))
         print("***********")
 
-    
-
     storedBody = database.getIssue(206)["body"][0]
     #pprint(storedBody)
     """
-    
 
     # feature_request = base64.standard_b64decode(content["content"]).decode("utf-8")
 
@@ -115,7 +115,7 @@ def _progress() -> Progress:
         console=console,
     )
 
-def insertion(issues: list[dict], database) -> int:
+def insertion(issues: list[dict], database : Database) -> int:
     inserted = 0
     with _progress() as progress:
         task = progress.add_task("[cyan]Inserting issues", total=len(issues))

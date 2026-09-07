@@ -1,28 +1,30 @@
-import io
-import warnings
-import contextlib
+import logging
 
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
-from transformers import logging as hf_logging
-
-# Keep model loading quiet so it doesn't clutter the rich UI.
-hf_logging.set_verbosity_error()
-warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
-
+from rich.console import Console
 class Embedder:
     # Requires a task prefix for every input, corpus documents use "search_document: "
     # search queries use "search_query: ", model is trained using these prefixes
-    MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
+    MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"   
 
     DOCUMENT = "search_document: "
     QUERY = "search_query: "
 
-    def __init__(self):
-        # The remote model code prints load chatter to stdout; swallow it so it
-        # doesn't clutter the rich UI.
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            self.model = SentenceTransformer(self.MODEL_NAME, trust_remote_code=True)
+    def __init__(self, console : Console):      
+        with console.status("[bold green]Loading embedding model", spinner="dots"):
+            # Hide the model's success log while preserving other warnings.
+            log_filter = lambda record: record.getMessage() != "<All keys matched successfully>"
+            handlers = [*logging.getLogger().handlers, logging.lastResort]
+            handlers = [handler for handler in handlers if handler is not None]
+            for handler in handlers:
+                handler.addFilter(log_filter)
+            try:
+                self.model = SentenceTransformer(self.MODEL_NAME, trust_remote_code=True)
+            finally:
+                for handler in handlers:
+                    handler.removeFilter(log_filter)
+        console.print("[green]✓[/] Loaded embedded model")
     
     # Tells the model what we want, apply some truncuation to not give it irrelevant stuff, the embedder
     # needs that self.DOCUMENT, the DB body field wont store the self.DOCUMENT
@@ -51,4 +53,3 @@ class Embedder:
     def embed_query(self, issue: str) -> list[float]:
         # Basically a singular call of embed_documents
         return self.model.encode(issue, normalize_embeddings=True).tolist()
-

@@ -1,12 +1,11 @@
+import datetime
+
 import requests
 import time
 from pprint import pprint
 from rich.console import Console
+from classes.database import Database
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
-
-console = Console()
-
-
 class GitHubClient:
     # BASE_URL of API requests
     BASE_URL = "https://api.github.com"
@@ -17,9 +16,11 @@ class GitHubClient:
 
     # https://github.com/curl/curl would be a full repo, the repo provided
     # below would be in the form curl/curl
-    def __init__(self, token: str, repo: str, name: str):
+    def __init__(self, token: str, repo: str, name: str, console : Console, database : Database):
         self.token = token # GitHub token
         self.repo = name + "/" + repo
+        self.console = console
+        self.database = database
         # https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10
         # "vnd.github+json" instead of plain "json" since we want GitHub's version of
         # the JSON we want returned since it may miss some useful fields
@@ -42,6 +43,8 @@ class GitHubClient:
             # Raises RequestException
             res = requests.get(url=path, params=params, headers=self.header);
 
+            print(res.request.url)
+
             # Raises HTTP error
             res.raise_for_status()
             data = res.json()
@@ -49,30 +52,35 @@ class GitHubClient:
             return data, link
    
         except requests.HTTPError as e:
-            console.print(f"[red]✗ HTTP error occurred:[/] {e}")
+            self.console.print(f"[red]✗ HTTP error occurred:[/] {e}")
             return [], None
         except requests.RequestException as e:
             if(retries > 0):
                 time.sleep(4)
-                console.print(f"[yellow]↻ Retrying, attempts left: {retries - 1}[/]")
+                self.console.print(f"[yellow]↻ Retrying, attempts left: {retries - 1}[/]")
                 return self._get(path, params, retries - 1)
             else:
-                console.print("[red]✗ All attempts exhausted[/]")
-                console.print(f"[red]A request error occurred:[/] {e}")
+                self.console.print("[red]✗ All attempts exhausted[/]")
+                self.console.print(f"[red]A request error occurred:[/] {e}")
             return [], None
 
+    def getRepoId(self, repo : str, owner : str) -> int:
+        # https://api.github.com/repos/usestrix/strix
+        data, _ = self._get(path=self.BASE_URL + "/repos/" + owner + "/" + repo)
+        return data["id"]
+
     # All because we want to include even resolved issues
-    def fetchIssues(self, state: str = "all") -> list[dict]:
+    def fetchIssues(self, id: int, timestamp : datetime.datetime, state: str = "all") -> list[dict]:
         nonPRs = 0
         issues = []
 
-        console.print(f"[dim]Fetching issues from[/] [cyan]{self.repo}[/]")
+        self.console.print(f"[dim]Fetching issues from[/] [cyan]{self.repo}[/]")
 
         progress = Progress(
             SpinnerColumn(),
             TextColumn("[green]Fetched [bold]{task.completed}[/] issues[/] [dim](page {task.fields[page]})[/]"),
             TimeElapsedColumn(),
-            console=console,
+            console=self.console,
             transient=True,
         )
         task = progress.add_task("fetch", total=None, page=1)
@@ -99,7 +107,9 @@ class GitHubClient:
         pageNumber = 1
 
         with progress:
-            data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100})
+            lastFetched = self.database.getLastFetched(id)
+            print(timestamp.isoformat())
+            data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100, "since": timestamp.isoformat()})
 
             filterKey(key='pull_request', data=data)
 
@@ -120,7 +130,7 @@ class GitHubClient:
 
                 url = link.split(";")[0].strip("<>")
 
-        console.print(f"[green]✓[/] Fetched [bold]{len(issues)}[/] issues")
+        self.console.print(f"[green]✓[/] Fetched [bold]{len(issues)}[/] issues")
         return issues
     
     def _graphQL_fetch(self, variables: dict, query: str, retries: int = 30) -> dict:
