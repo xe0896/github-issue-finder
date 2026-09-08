@@ -26,23 +26,11 @@ class Database:
         # Allows psycopg2 to handle the vector embedding type
         register_vector(self.conn)
 
-    def getLastFetched(self, id: int):
-        cursor = self.conn.cursor()
-
-        lastFetched = """
-        SELECT lastFetched FROM repos WHERE id = %s
-        """
-
-        cursor.execute(lastFetched, (id, ))
-
-        rows = cursor.fetchone()
-
-
-    def insertIssue(self, issue: dict) -> None:
+    def insertIssue(self, issue: dict, repoId : int) -> None:
         cursor = self.conn.cursor()
         insertIssues = """
-        INSERT INTO issues (id, number, title, body, state, labels, created_at, closed_at, url, comments, embedding)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
+        INSERT INTO issues (id, number, title, body, state, labels, created_at, closed_at, url, comments, embedding, repoId)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s)
         ON CONFLICT (id) DO NOTHING;
         """
 
@@ -72,7 +60,7 @@ class Database:
             cursor.execute(updateIssue, (issue["body"], issue["state"], comments, issue["id"]))
         else:
             data = (issue["id"], issue["number"], issue["title"], issue["body"], issue["state"],
-                            labelNames, issue["created_at"], issue["closed_at"], issue["url"], comments)
+                            labelNames, issue["created_at"], issue["closed_at"], issue["url"], comments, repoId)
             
             cursor.execute(insertIssues, data)
 
@@ -137,19 +125,23 @@ class Database:
 
         return rows
 
-    def incomingRepo(self, id : int, repo : str, owner : str) -> datetime:
+    def incomingRepo(self, id: int) -> datetime:
         cursor = self.conn.cursor(cursor_factory=DictCursor)
 
         existenceCheck = """
         SELECT lastFetched FROM repos WHERE id = %s
         """
-
-        dt = datetime.now(timezone.utc)
         cursor.execute(existenceCheck, (id, ))
-
+        dt = datetime.now(timezone.utc)
         rows = cursor.fetchone()
-        if(rows == None):
+        timestamp = None
+        count = None
+        if rows is not None:
+            timestamp = rows[0]
+
+        if(timestamp == None):
             # Does not exist yet
+            
             newRepo = """
             INSERT INTO repos (id, lastFetched)
             VALUES (%s, %s)
@@ -171,13 +163,19 @@ class Database:
 
             cursor.execute(updateLastFetched, data)
 
+            getIssueCount = """
+            SELECT COUNT(*) FROM issues WHERE repoId = %s
+            """
+
+            data = (id,)
+
+            cursor.execute(getIssueCount, data)
+            count = cursor.fetchone()
+
         self.conn.commit()
         cursor.close()
 
-        if(dt is None):
-            return None
-        else:
-            return dt
+        return timestamp, count[0] if count else None
 
 
     def search(self, query_embedding: list[float], k: int = 10, exclude: int = None) -> list[dict]:

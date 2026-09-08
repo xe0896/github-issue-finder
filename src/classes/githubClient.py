@@ -42,9 +42,6 @@ class GitHubClient:
 
             # Raises RequestException
             res = requests.get(url=path, params=params, headers=self.header);
-
-            print(res.request.url)
-
             # Raises HTTP error
             res.raise_for_status()
             data = res.json()
@@ -107,9 +104,7 @@ class GitHubClient:
         pageNumber = 1
 
         with progress:
-            lastFetched = self.database.getLastFetched(id)
-            print(timestamp.isoformat())
-            data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100, "since": timestamp.isoformat()})
+            data, link = self._get(path=self.BASE_URL + "/repos/" + self.repo + "/issues", params = {"state": state, "per_page": 100, "since": timestamp.isoformat() if timestamp is not None else None})
 
             filterKey(key='pull_request', data=data)
 

@@ -59,12 +59,13 @@ def ingest(
     console.print("[green]✓[/] Connected to database & GitHub")
 
     id = client.getRepoId(repo, owner)
-    print(id)
-    timestamp = database.incomingRepo(id, repo, owner)
-    
+    timestamp, count = database.incomingRepo(id)
+    if count:
+         console.print(f"[green]✓[/] Already have {count} issues stored for [cyan]{owner}/{repo}[/]")
+
     issues = client.fetchIssues(id=id, timestamp=timestamp)
 
-    inserted = insertion(issues, database)
+    inserted = insertion(issues, database, id)
 
     summary = Table(box=None, show_header=False, padding=(0, 2))
     summary.add_column(style="dim")
@@ -115,12 +116,12 @@ def _progress() -> Progress:
         console=console,
     )
 
-def insertion(issues: list[dict], database : Database) -> int:
+def insertion(issues: list[dict], database : Database, repoId : int) -> int:
     inserted = 0
     with _progress() as progress:
         task = progress.add_task("[cyan]Inserting issues", total=len(issues))
         for issue in issues:
-            database.insertIssue(issue)
+            database.insertIssue(issue, repoId)
             inserted += 1
             progress.advance(task)
     return inserted
