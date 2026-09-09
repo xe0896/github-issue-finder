@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 
 from pathlib import Path
+import webbrowser
 
 # Ensure src/ (this file's directory) is importable so bare
 # `classes.*` / `eval.*` / `setup` imports resolve regardless of cwd.
@@ -14,6 +15,7 @@ import typer
 from dotenv import load_dotenv
 from setup import setup
 from pprint import pprint
+from rich.prompt import Prompt
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -73,6 +75,9 @@ def ingest(
     summary.add_row("Issues fetched", str(len(issues)))
     summary.add_row("Issues processed", str(inserted))
     console.print(Panel(summary, title="[bold green]Done[/]", border_style="green", expand=False))
+
+    bodies = database.getBodies(id)
+    pprint(bodies)
 
     """
     content = client.get_file(".github/ISSUE_TEMPLATE")

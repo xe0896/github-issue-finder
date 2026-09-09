@@ -1,5 +1,6 @@
 import logging
 
+from transformers.utils import logging as e
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 from rich.console import Console
@@ -12,6 +13,7 @@ class Embedder:
     QUERY = "search_query: "
 
     def __init__(self, console : Console):      
+        e.set_verbosity_error()
         with console.status("[bold green]Loading embedding model", spinner="dots"):
             # Hide the model's success log while preserving other warnings.
             log_filter = lambda record: record.getMessage() != "<All keys matched successfully>"

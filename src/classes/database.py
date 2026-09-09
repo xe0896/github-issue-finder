@@ -177,6 +177,19 @@ class Database:
 
         return timestamp, count[0] if count else None
 
+    def getBodies(self, repoId : int, issueId : int):
+        cursor = self.conn.cursor(cursor_factory=DictCursor)
+
+        getBody = """
+        SELECT body FROM issues WHERE repoId = %s AND number = %s
+        """
+
+        data = (repoId, issueId)
+
+        cursor.execute(getBody, data)
+
+        return cursor.fetchall()
+
 
     def search(self, query_embedding: list[float], k: int = 10, exclude: int = None) -> list[dict]:
         cursor = self.conn.cursor(cursor_factory=DictCursor)

@@ -11,8 +11,14 @@ CREATE TABLE IF NOT EXISTS issues (
     created_at TIMESTAMPTZ, -- when the issue was opened
     closed_at TIMESTAMPTZ, -- when it was closed, NULL if still open
     url TEXT, -- link to the issue on GitHub
-    embedding vector(768) -- 768-dim meaning vector, filled in by the embedder
+    embedding vector(768), -- 768-dim meaning vector, filled in by the embedder
+    repoId BIGINT NOT NULL
 );
+
+-- CREATE TABLE IF NOT EXISTS does not update existing tables.
+-- Existing issues must be assigned repository IDs before adding NOT NULL
+-- on a populated database that does not yet have this column.
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS repoId BIGINT NOT NULL;
 
 CREATE TABLE IF NOT EXISTS repos (
     id BIGINT PRIMARY KEY,
